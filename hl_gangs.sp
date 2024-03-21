@@ -610,22 +610,9 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 		if (IsPlayerGangable(attacker) && GetClientTeam(client) == 3 && !StrEqual(ga_sGangName[attacker], ga_sGangName[client]))
 		{
 			ga_iCTKills[attacker]++;
-
-		    SQL_LockDatabase(g_hDatabase);
-			static DBStatement user_statement = null;
-			if(user_statement == null)
-			{
-				char error[255];
-				user_statement = SQL_PrepareQuery(g_hDatabase, "UPDATE hl_gangs_statistics SET ctkills = ? WHERE gang = ?, error, sizeof(error));
-				if(user_statement == null)
-				{
-					return Plugin_Continue; 
-				}
-			}
-
-			SQL_BindParamString(user_statement, 0, ga_iCTKills[attacker], true);
-			SQL_BindParamString(user_statement, 1, ga_sGangName[attacker], false);
-
+			char sQuery[300];
+			Format(sQuery, sizeof(sQuery), "UPDATE hl_gangs_statistics SET ctkills = %i WHERE gang=\"%s\"", ga_iCTKills[attacker], ga_sGangName[attacker]);
+			
 			for (int i = 1; i <= MaxClients; i++)
 			{
 				if (IsValidClient(i))
@@ -636,9 +623,8 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 					}
 				}
 			}
-						
-			SQL_Execute(user_statement);
-		    SQL_UnlockDatabase(g_hDatabase);
+			
+			g_hDatabase.Query(SQLCallback_Void, sQuery);
 		}
 	}
 }
@@ -767,28 +753,9 @@ public void SQLCallback_CheckSQL_Player(Database db, DBResultSet results, const 
 			ga_iSpeed[client] = 0;
 			ga_iSize[client] = 0;
 
-			static DBStatement user_statement = null;
-		    SQL_LockDatabase(g_hDatabase);
-			if(user_statement == null)
-			{
-				char error[255];
-				user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_groups WHERE gang = ?", error, sizeof(error));
-				if(user_statement == null)
-				{
-					return; 
-				}
-			}
-
-			SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-
-		 	DBResultSet query_result = SQL_Query(user_statement);
-			if(query_result == null)
-			{
-				SQLCallback_CheckSQL_Groups(query_result, client);
-			}
-
-		    SQL_UnlockDatabase(g_hDatabase);
+			char sQuery_2[300];
+			Format(sQuery_2, sizeof(sQuery_2), "SELECT * FROM hl_gangs_groups WHERE gang=\"%s\"", ga_sGangName[client]);
+			g_hDatabase.Query(SQLCallback_CheckSQL_Groups, sQuery_2, GetClientUserId(client));
 		}
 		else
 		{
@@ -811,8 +778,19 @@ public void SQLCallback_CheckSQL_Player(Database db, DBResultSet results, const 
 	}
 }
 
-public void SQLCallback_CheckSQL_Groups(DBResultSet results, int client)
+public void SQLCallback_CheckSQL_Groups(Database db, DBResultSet results, const char[] error, int data)
 {
+	if (db == null)
+	{
+		SetDB();
+	}
+	if (results == null)
+	{
+		LogError(error);
+		return;
+	}
+
+	int client = GetClientOfUserId(data);
 	if (!IsValidClient(client))
 	{
 		return;
@@ -829,27 +807,9 @@ public void SQLCallback_CheckSQL_Groups(DBResultSet results, int client)
 			ga_iSpeed[client] = results.FetchInt(5);
 			ga_iSize[client] = results.FetchInt(6);
 
-			SQL_LockDatabase(g_hDatabase);
-			static DBStatement user_statement = null;
-			if(user_statement == null)
-			{
-				char error[255];
-				user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT ctkills,lastrequests FROM hl_gangs_statistics WHERE gang = ?", error, sizeof(error));
-				if(user_statement == null)
-				{
-					return; 
-				}
-			}
-
-			SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-		 	DBResultSet query_result = SQL_Query(user_statement);
-			if(query_result == null)
-			{
-				SQL_Callback_CTKills(query_result, client);
-			}
-
-		    SQL_UnlockDatabase(g_hDatabase);
+			char sQuery[300];
+			Format(sQuery, sizeof(sQuery), "SELECT ctkills,lastrequests FROM hl_gangs_statistics WHERE gang=\"%s\"", ga_sGangName[client]);
+			g_hDatabase.Query(SQL_Callback_CTKills, sQuery, GetClientUserId(client));
 		}
 	}
 }
@@ -987,28 +947,9 @@ void StartOpeningGangMenu(int client)
 {
 	if (!StrEqual(ga_sGangName[client], ""))
 	{
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_players WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
-
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQLCallback_OpenGangMenu(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		char sQuery[300];
+		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_players WHERE gang = \"%s\"", ga_sGangName[client]);
+		g_hDatabase.Query(SQLCallback_OpenGangMenu, sQuery, GetClientUserId(client));
 	}
 	else
 	{
@@ -1263,29 +1204,9 @@ public Action OnSay(int client, const char[] command, int args)
 		data.WriteString(sText);
 		data.Reset();
 
-		static DBStatement user_statement = null;
-
-	    SQL_LockDatabase(g_hDatabase);
-
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_groups WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled; 
-			}
-		}
-
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQL_Callback_CheckName(query_result, client);
-		}
-
-	    SQL_UnockDatabase(g_hDatabase);
+		char sQuery[300];
+		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_groups WHERE gang=\"%s\"", sFormattedText);
+		g_hDatabase.Query(SQL_Callback_CheckName, sQuery, data);
 
 		return Plugin_Handled;
 	}
@@ -1313,28 +1234,9 @@ public Action OnSay(int client, const char[] command, int args)
 		data.WriteString(sText);
 		data.Reset();
 
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_groups WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
-
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQL_Callback_CheckName(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		char sQuery[300];
+		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_groups WHERE gang=\"%s\"", sFormattedText);
+		g_hDatabase.Query(SQL_Callback_CheckName, sQuery, data);
 
 		return Plugin_Handled;
 	}
@@ -1414,30 +1316,18 @@ public void SQL_Callback_CheckName(Database db, DBResultSet results, const char[
 						strcopy(ga_sGangName[i], sizeof(ga_sGangName[]), sText);
 					}
 				}
+				char sQuery[300];
+				Format(sQuery, sizeof(sQuery), "UPDATE hl_gangs_players SET gang=\"%s\" WHERE gang=\"%s\"", sText, sOldName);
 
-				char error[255];
-				SQL_LockDatabase(g_hDatabase);
-				DBStatement user_statement = SQL_PrepareQuery(g_hDatabase, "UPDATE hl_gangs_players SET gang=? WHERE gang=?", error, sizeof(error));
+				g_hDatabase.Query(SQLCallback_Void, sQuery);
 
-				SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-				SQL_BindParamString(user_statement, 1, ga_sGangName[attacker], false);
+				Format(sQuery, sizeof(sQuery), "UPDATE hl_gangs_groups SET gang=\"%s\" WHERE gang=\"%s\"", sText, sOldName);
 
-			 	SQL_Execute(user_statement);
+				g_hDatabase.Query(SQLCallback_Void, sQuery);
+		
+				Format(sQuery, sizeof(sQuery), "UPDATE hl_gangs_statistics SET gang=\"%s\" WHERE gang=\"%s\"", sText, sOldName);
 
-				user_statement = SQL_PrepareQuery(g_hDatabase, "UPDATE hl_gangs_groups SET gang=? WHERE gang=?", error, sizeof(error));
-
-				SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-				SQL_BindParamString(user_statement, 1, ga_sGangName[attacker], false);
-
-			 	SQL_Execute(user_statement);
-
-				user_statement = SQL_PrepareQuery(g_hDatabase, "UPDATE hl_gangs_statistics SET gang=? WHERE gang=?", error, sizeof(error));
-
-				SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-				SQL_BindParamString(user_statement, 1, ga_sGangName[attacker], false);
-
-			 	SQL_Execute(user_statement);
-				SQL_UnlockDatabase(g_hDatabase);
+				g_hDatabase.Query(SQLCallback_Void, sQuery);
 
 				char name[MAX_NAME_LENGTH];
 				GetClientName(client, name, sizeof(name));
@@ -1475,28 +1365,6 @@ void StartOpeningMembersMenu(int client)
 {
 	if (!StrEqual(ga_sGangName[client], ""))
 	{
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_players WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
-
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQLCallback_OpenMembersMenu(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
 		char sQuery[300];
 		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_players WHERE gang=\"%s\"", ga_sGangName[client]);
 
@@ -1828,28 +1696,9 @@ public void StartOpeningPerkMenu(int client)
 {
 	if (IsValidClient(client))
 	{
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT health, damage, gravity, speed, size FROM hl_gangs_groups WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
-
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQLCallback_Perks(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		char sQuery[300];
+		Format(sQuery, sizeof(sQuery), "SELECT health, damage, gravity, speed, size FROM hl_gangs_groups WHERE gang=\"%s\"", ga_sGangName[client]);
+		g_hDatabase.Query(SQLCallback_Perks, sQuery, GetClientUserId(client));
 	}
 }
 
@@ -2178,28 +2027,10 @@ void OpenAdministrationPromotionMenu(int client)
 {
 	if (!StrEqual(ga_sGangName[client], ""))
 	{
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_players WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
+		char sQuery[200];
+		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_players WHERE gang=\"%s\"", ga_sGangName[client]);
 
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQLCallback_AdministrationPromotionMenu(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		g_hDatabase.Query(SQLCallback_AdministrationPromotionMenu, sQuery, GetClientUserId(client));
 	}
 }
 
@@ -2419,28 +2250,10 @@ void OpenAdministrationKickMenu(int client)
 {
 	if (!StrEqual(ga_sGangName[client], ""))
 	{
-		static DBStatement user_statement = null;
-		if(user_statement == null)
-		{
-			char error[255];
-			user_statement = SQL_PrepareQuery(g_hDatabase, "SELECT * FROM hl_gangs_players WHERE gang = ?", error, sizeof(error));
-			if(user_statement == null)
-			{
-				return Plugin_Handled;
-			}
-		}
+		char sQuery[200];
+		Format(sQuery, sizeof(sQuery), "SELECT * FROM hl_gangs_players WHERE gang=\"%s\"", ga_sGangName[client]);
 
-		SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-	 	DBResultSet query_result = SQL_Query(user_statement);
-		if(query_result == null)
-		{
-			SQLCallback_AdministrationKickMenu(query_result, client);
-		}
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		g_hDatabase.Query(SQLCallback_AdministrationKickMenu, sQuery, GetClientUserId(client));
 	}
 }
 
@@ -2950,26 +2763,16 @@ void RemoveFromGang(int client)
 {
 	if (ga_iRank[client] == Rank_Owner)
 	{
-		char error[255];
-		DBStatement user_statement1 = SQL_PrepareQuery(g_hDatabase, "DELETE FROM hl_gangs_players WHERE gang = ?", error, sizeof(error));
-		DBStatement user_statement2 = SQL_PrepareQuery(g_hDatabase, "DELETE FROM hl_gangs_groups WHERE gang = ?", error, sizeof(error));
-		DBStatement user_statement3 = SQL_PrepareQuery(g_hDatabase, "DELETE FROM hl_gangs_statistics WHERE gang = ?", error, sizeof(error));
-		if(user_statement1 == null || user_statement2 == null || user_statement3 == null)
-		{
-			return Plugin_Handled;
-		}
+		char sQuery1[300];
+		char sQuery2[300];
+		char sQuery3[300];
+		Format(sQuery1, sizeof(sQuery1), "DELETE FROM hl_gangs_players WHERE gang = \"%s\"", ga_sGangName[client]);
+		Format(sQuery2, sizeof(sQuery2), "DELETE FROM hl_gangs_groups WHERE gang = \"%s\"", ga_sGangName[client]);
+		Format(sQuery3, sizeof(sQuery3), "DELETE FROM hl_gangs_statistics WHERE gang = \"%s\"", ga_sGangName[client]);
 
-		SQL_BindParamString(user_statement1, 0, ga_sGangName[attacker], false);
-		SQL_BindParamString(user_statement2, 0, ga_sGangName[attacker], false);
-		SQL_BindParamString(user_statement3, 0, ga_sGangName[attacker], false);
-
-	    SQL_LockDatabase(g_hDatabase);
-
-		SQL_Execute(user_statement1);
-		SQL_Execute(user_statement2);
-		SQL_Execute(user_statement3);
-
-	    SQL_UnlockDatabase(g_hDatabase);
+		g_hDatabase.Query(SQLCallback_Void, sQuery1);
+		g_hDatabase.Query(SQLCallback_Void, sQuery2);
+		g_hDatabase.Query(SQLCallback_Void, sQuery3);
 		
 		char name[MAX_NAME_LENGTH];
 		GetClientName(client, name, sizeof(name));
@@ -3119,25 +2922,8 @@ public void OnAvailableLR(int announce)
 					
 					char sQuery[256];
 					/* Reflect it to db */
-					static DBStatement user_statement = null;
-					if(user_statement == null)
-					{
-						char error[255];
-						user_statement = SQL_PrepareQuery(g_hDatabase, "UPDATE hl_gangs_statistics SET lastrequests = ? WHERE gang= ?", error, sizeof(error));
-						if(user_statement == null)
-						{
-							return Plugin_Handled;
-						}
-					}
-
-					SQL_BindParamString(user_statement, 0, ga_sGangName[attacker], false);
-					SQL_BindParamString(user_statement, 1, ga_iLastRequests[i], false);
-
-				    SQL_LockDatabase(g_hDatabase);
-
-				 	SQL_Execute(user_statement);
-
-				    SQL_UnlockDatabase(g_hDatabase);
+					Format(sQuery, sizeof(sQuery), "UPDATE hl_gangs_statistics SET lastrequests = %i WHERE gang=\"%s\"", ga_iLastRequests[i], ga_sGangName[i]);
+					g_hDatabase.Query(SQLCallback_Void, sQuery);
 				}
 			}
 		}
