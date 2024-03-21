@@ -1201,7 +1201,7 @@ public Action OnSay(int client, const char[] command, int args)
 		
 		DataPack data = new DataPack();
 		data.WriteCell(client);
-		data.WriteString(sText);
+		data.WriteString(sFormattedText);
 		data.Reset();
 
 		char sQuery[300];
@@ -1231,7 +1231,7 @@ public Action OnSay(int client, const char[] command, int args)
 		
 		DataPack data = new DataPack();
 		data.WriteCell(client);
-		data.WriteString(sText);
+		data.WriteString(sFormattedText);
 		data.Reset();
 
 		char sQuery[300];
